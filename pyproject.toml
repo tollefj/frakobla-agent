@@ -1,0 +1,39 @@
+[project]
+name = "frakobla-llm"
+version = "0.1.0"
+description = "frakobla llm: minimal agentic CLI for a local llama.cpp server"
+requires-python = ">=3.13"
+dependencies = [
+    "httpx>=0.28",
+    "httpx2>=2.16",
+    "mcp>=2.3.0",
+    "prompt-toolkit>=3.0.50",
+    "rich>=14.0",
+    "tomlkit>=0.15.2",
+]
+
+[project.scripts]
+frak = "frakobla_llm.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.17.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/frakobla_llm"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 150
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "RUF"]
+ignore = ["E501"]
