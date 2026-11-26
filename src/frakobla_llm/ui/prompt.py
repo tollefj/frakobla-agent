@@ -9,13 +9,18 @@ from prompt_toolkit.completion import CompleteEvent, Completer, Completion
 from prompt_toolkit.document import Document
 from prompt_toolkit.formatted_text import FormattedText
 from prompt_toolkit.history import FileHistory
+from prompt_toolkit.input.ansi_escape_sequences import ANSI_SEQUENCES
 from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.keys import Keys
 
 from frakobla_llm.config import CONFIG_DIR
 from frakobla_llm.permissions import Answer, Choice
 from frakobla_llm.tools.interact import Interaction, PlanItem
 
 HISTORY_FILE = CONFIG_DIR / "history"
+SHIFT_ENTER_SEQUENCES = ("\x1b[13;2u", "\x1b[27;2;13~")
+for _sequence in SHIFT_ENTER_SEQUENCES:
+    ANSI_SEQUENCES[_sequence] = (Keys.Escape, Keys.ControlM)
 PERMISSION_KEYS = {
     "": Choice.ONCE,
     "y": Choice.ONCE,
@@ -112,17 +117,11 @@ class InputPrompt:
     ) -> None:
         HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
         self.interaction = interaction
-        bindings = KeyBindings()
-
-        @bindings.add("escape", "enter")
-        def _(event) -> None:
-            event.current_buffer.insert_text("\n")
-
         self._session = PromptSession(
             history=FileHistory(str(HISTORY_FILE)),
             completer=InputCompleter(cwd, command_names),
             complete_while_typing=True,
-            key_bindings=bindings,
+            key_bindings=newline_bindings(),
             bottom_toolbar=toolbar,
         )
 
@@ -133,6 +132,17 @@ class InputPrompt:
         finally:
             self.interaction.suggestions = []
         return chosen_suggestion(text, suggestions) or text
+
+
+def newline_bindings() -> KeyBindings:
+    bindings = KeyBindings()
+
+    @bindings.add("escape", "enter")
+    @bindings.add("c-j")
+    def _(event) -> None:
+        event.current_buffer.insert_text("\n")
+
+    return bindings
 
 
 def chosen_suggestion(text: str, suggestions: list[str]) -> str:

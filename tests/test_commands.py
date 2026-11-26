@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+import pytest
 from rich.console import Console
 
 from frakobla_llm import cli, commands
@@ -122,3 +123,17 @@ def test_lazy_mcp_hides_tools_behind_search():
     assert cli.enable_lazy_mcp(registry, McpPlaceholder(), False) == ""
     assert "mcp_search" in cli.enable_lazy_mcp(registry, McpPlaceholder(), True)
     assert registry.names() == ["mcp_search"]
+
+
+@pytest.mark.parametrize("newline", ["\x1b[13;2u", "\x1b[27;2;13~", "\x1b\r", "\n"])
+def test_shift_enter_and_fallbacks_insert_a_newline(newline):
+    from prompt_toolkit import PromptSession
+    from prompt_toolkit.input import create_pipe_input
+    from prompt_toolkit.output import DummyOutput
+
+    from frakobla_llm.ui.prompt import newline_bindings
+
+    with create_pipe_input() as pipe:
+        pipe.send_text(f"first{newline}second\r")
+        session = PromptSession(key_bindings=newline_bindings(), input=pipe, output=DummyOutput())
+        assert session.prompt() == "first\nsecond"

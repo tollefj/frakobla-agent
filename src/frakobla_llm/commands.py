@@ -105,7 +105,7 @@ def _help(app: App, _: str) -> None:
     table.add_row("[cyan]!cmd[/cyan]", "run a shell command locally")
     table.add_row("[cyan]!!cmd[/cyan]", "run it and attach the output to your next message")
     table.add_row("[cyan]1-3[/cyan]", "then Enter sends that suggested follow-up")
-    table.add_row("[cyan]Alt-Enter[/cyan]", "newline in the input")
+    table.add_row("[cyan]Ctrl-J[/cyan]", "newline in the input (works in every terminal, Shift-Enter and Alt-Enter only in some)")
     table.add_row("[cyan]Ctrl-C twice[/cyan]", "quit, as does Ctrl-D")
     table.add_row("[cyan]@path[/cyan]", "complete a file path")
     app.console.print(table)
