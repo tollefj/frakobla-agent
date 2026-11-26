@@ -2,7 +2,11 @@
 
 errything local :)
 
-install (requires uv) and run:
+install uv first:
+
+`curl -LsSf https://astral.sh/uv/install.sh | sh`
+
+then install and run:
 
 `uv tool install git+ssh://git@github.com/tollefj/frakobla-agent.git`
 
