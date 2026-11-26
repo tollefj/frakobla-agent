@@ -172,7 +172,10 @@ class FileTools:
         include = re.compile(glob.translate(args["include"])) if args.get("include") else None
         hits = []
         for file in _walk(base):
-            if is_sensitive(file.name) or (include and not include.match(file.name)):
+            if include and not include.match(file.name):
+                continue
+            target = file.resolve()
+            if is_sensitive(file.name) or is_sensitive(target.name) or not target.is_relative_to(base):
                 continue
             hits.extend(self._grep_file(file, regex))
             if len(hits) > MAX_RESULTS:

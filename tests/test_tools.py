@@ -7,7 +7,7 @@ from frakobla_llm.context import truncate_middle
 from frakobla_llm.tools.fs import FileTools
 from frakobla_llm.tools.registry import ToolError
 from frakobla_llm.tools.shell import bash_tool
-from frakobla_llm.ui.render import split_complete_blocks
+from frakobla_llm.ui.render import split_complete_blocks, strip_control, summarize_args
 
 
 @pytest.fixture
@@ -110,6 +110,18 @@ def test_grep_skips_sensitive_files_and_glob_survives_dangling_links(files, tmp_
     assert "notes.txt" in files.glob({"pattern": "*"})
 
 
+def test_grep_does_not_follow_links_out_of_the_tree_or_to_sensitive_files(tmp_path_factory):
+    outside = tmp_path_factory.mktemp("outside") / "private.txt"
+    outside.write_text("needle\n")
+    project = tmp_path_factory.mktemp("project")
+    (project / "server.key").write_text("needle\n")
+    (project / "notes.txt").write_text("needle\n")
+    (project / "escape.txt").symlink_to(outside)
+    (project / "innocent.txt").symlink_to(project / "server.key")
+
+    assert FileTools(project).grep({"pattern": "needle"}) == "notes.txt:1: needle"
+
+
 def test_project_config_needs_trust_for_gated_sections(tmp_path):
     project = tmp_path / ".frakobla-llm" / "config.toml"
     project.parent.mkdir()
@@ -145,3 +157,40 @@ def test_legacy_data_is_moved_without_overwriting(tmp_path):
     assert (target / "sessions" / "<dir>" / "a.jsonl").read_text() == "<old session>"
     assert (target / "history").read_text() == "<new history>"
     assert (legacy / "history").exists()
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("192.168.0.10:8080", "http://192.168.0.10:8080"),
+        (" http://localhost:8080/ ", "http://localhost:8080"),
+        ("https://<host>:443", "https://<host>:443"),
+    ],
+)
+def test_normalize_base_url(raw, expected):
+    from frakobla_llm.config import normalize_base_url
+
+    assert normalize_base_url(raw) == expected
+
+
+def test_normalize_base_url_rejects_garbage():
+    from frakobla_llm.config import ConfigError, normalize_base_url
+
+    with pytest.raises(ConfigError):
+        normalize_base_url("ftp://host")
+
+
+def test_initial_config_sets_url_and_ask_mode(tmp_path):
+    from frakobla_llm.config import write_initial_config
+
+    path = tmp_path / "config.toml"
+    write_initial_config(path, "10.0.0.5:8080")
+    config = load_config(tmp_path / "<project>", path)
+    assert config["server"]["base_url"] == "http://10.0.0.5:8080"
+    assert config["permissions"]["mode"] == "ask"
+    assert not config.warnings
+
+
+def test_control_characters_are_stripped_from_model_text():
+    assert strip_control("ls\x1b[2K\x1b[1Arm -rf ~\r\n\tok\x9b") == "ls[2K[1Arm -rf ~\n\tok"
+    assert "\x1b" not in summarize_args({"command": "echo \x1b]0;title\x07"})

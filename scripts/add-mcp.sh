@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Interactive helper behind `make mcp`: asks for an MCP server and writes it to the frak config.
+# Interactive wizard for `frak mcp add`: asks for an MCP server and writes it to the frak config.
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-mcp_config() { uv run --quiet --project "$PROJECT_DIR" python -m frakobla_llm.mcp_config "$@"; }
+mcp_config() { uv run --quiet --project "$PROJECT_DIR" frak mcp "$@"; }
 
 ask() {
     local prompt="$1" default="${2:-}" reply
@@ -103,5 +103,5 @@ fi
 
 echo
 if [[ "$(ask "Test the connection now? y/n" y)" == y ]]; then
-    mcp_config check "$name" || echo "The server is saved anyway. Fix it with make mcp or edit the config, then run make mcp-check NAME=$name"
+    mcp_config check "$name" || echo "The server is saved anyway. Fix it in the config, then run frak mcp check $name"
 fi

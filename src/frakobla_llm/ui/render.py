@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 import time
 from collections.abc import Callable
@@ -21,6 +22,11 @@ from frakobla_llm.ui.prompt import PLAN_MARKS, read_choice, read_permission_answ
 RESULT_PREVIEW_LINES = 6
 REASONING_TAIL_LINES = 6
 ARG_PREVIEW_CHARS = 70
+CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
+
+
+def strip_control(text: str) -> str:
+    return CONTROL_CHARS.sub("", text)
 
 
 def split_complete_blocks(text: str) -> tuple[str, str]:
@@ -44,7 +50,7 @@ def summarize_args(args: dict) -> str:
         if len(shown) > ARG_PREVIEW_CHARS:
             shown = shown[:ARG_PREVIEW_CHARS] + "..."
         parts.append(f"{key}={shown}")
-    return "  ".join(parts)
+    return strip_control("  ".join(parts))
 
 
 class Renderer:
@@ -66,7 +72,7 @@ class Renderer:
     def reasoning(self, text: str) -> None:
         if not self._reasoning:
             self._reasoning_started = time.monotonic()
-        self._reasoning += text
+        self._reasoning += strip_control(text)
         self._reasoning_tokens += 1
         self.on_tick(False)
         tail = "\n".join(self._reasoning.splitlines()[-REASONING_TAIL_LINES:])
@@ -76,7 +82,7 @@ class Renderer:
     def content(self, text: str) -> None:
         self._finish_reasoning()
         self.on_tick(False)
-        self._pending_markdown += text
+        self._pending_markdown += strip_control(text)
         complete, self._pending_markdown = split_complete_blocks(self._pending_markdown)
         if complete.strip():
             self.console.print(Markdown(complete))
@@ -95,7 +101,7 @@ class Renderer:
         self.console.print(line, overflow="ellipsis", no_wrap=True)
 
     def tool_result(self, result: str, ok: bool) -> None:
-        lines = result.splitlines() or [""]
+        lines = strip_control(result).splitlines() or [""]
         shown = lines[:RESULT_PREVIEW_LINES]
         if len(lines) > len(shown):
             shown.append(f"... +{len(lines) - len(shown)} lines")
@@ -114,10 +120,10 @@ class Renderer:
 
     def ask_user(self, question: str, choices: list[str]) -> str:
         self._hide()
-        body = Text(question)
+        body = Text(strip_control(question))
         for number, choice in enumerate(choices, 1):
             body.append(f"\n  {number} ", style="bold cyan")
-            body.append(choice)
+            body.append(strip_control(choice))
         self.console.print(Panel(body, title="question", border_style="magenta"))
         return read_choice(choices)
 
@@ -169,6 +175,7 @@ class PlainUI:
         pass
 
     def content(self, text: str) -> None:
+        text = strip_control(text)
         sys.stdout.write(text)
         sys.stdout.flush()
         self._line_open = not text.endswith("\n")
@@ -184,7 +191,7 @@ class PlainUI:
 
     def tool_result(self, result: str, ok: bool) -> None:
         if not ok:
-            print(f"  {result}", file=sys.stderr)
+            print(f"  {strip_control(result)}", file=sys.stderr)
 
     def notice(self, text: str) -> None:
         print(text, file=sys.stderr)
@@ -200,17 +207,23 @@ def plan_text(plan: list[PlanItem]) -> Text:
     text = Text()
     for item in plan:
         mark, style = PLAN_MARKS[item.status]
-        text.append(f"  {mark}{item.step}\n", style=style.replace("ansi", ""))
+        text.append(f"  {mark}{strip_control(item.step)}\n", style=style.replace("ansi", ""))
     text.rstrip()
     return text
+
+
+def _command_detail(command: str) -> RenderableType:
+    if CONTROL_CHARS.search(command):
+        return Text(f"{command!r}\n(contains control characters, shown escaped)", style="bold red")
+    return Syntax(command, "bash", theme="ansi_dark", word_wrap=True)
 
 
 def _permission_body(request: PermissionRequest) -> RenderableType:
     tool = request.tool
     if tool.preview:
-        detail: RenderableType = Syntax(tool.preview(request.args), "diff", theme="ansi_dark", word_wrap=True)
+        detail: RenderableType = Syntax(strip_control(tool.preview(request.args)), "diff", theme="ansi_dark", word_wrap=True)
     elif tool.subject_arg and not tool.subject_is_path:
-        detail = Syntax(request.subject, "bash", theme="ansi_dark", word_wrap=True)
+        detail = _command_detail(request.subject)
     else:
         detail = Text(summarize_args(request.args))
     lines: list[RenderableType] = [

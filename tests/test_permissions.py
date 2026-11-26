@@ -168,3 +168,20 @@ def test_risky_requests_need_an_explicit_answer(tools, tmp_path):
     permissions.authorize(tools["bash"], {"command": "sudo ls"})
 
     assert [request.needs_explicit_answer for request in requests] == [False, True, True]
+
+
+def test_permission_prompt_escapes_control_characters_in_commands(tools):
+    import io
+
+    from rich.console import Console
+
+    from frakobla_llm.permissions import PermissionRequest
+    from frakobla_llm.ui.render import _permission_body
+
+    command = "echo safe\x1b[2K\rrm -rf ~"
+    request = PermissionRequest(tools["bash"], {"command": command}, command, "<reason>", "", Rule(command, "exact"))
+    out = io.StringIO()
+    Console(file=out, color_system=None, width=200).print(_permission_body(request))
+
+    assert "\x1b" not in out.getvalue()
+    assert "\\x1b[2K\\rrm -rf ~" in out.getvalue()

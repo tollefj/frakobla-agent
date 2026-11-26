@@ -7,11 +7,17 @@ Requires Python 3.13+, [uv](https://docs.astral.sh/uv/) and a running `llama-ser
 ## Install
 
 ```sh
-make install        # uv sync into .venv
-make install-tool   # put `frak` on your PATH (editable, follows this checkout)
+make install   # put `frak` on your PATH, installed from GitHub (origin)
+make update    # reinstall the latest from GitHub
 ```
 
 Without installing the tool, run it with `uv run frak`.
+
+Without a clone: `uv tool install git+ssh://git@github.com/tollefj/frakobla-agent.git`. The first interactive run without `~/.config/frakobla-llm/config.toml` asks for the llama-server URL (e.g. `http://192.168.0.10:8080`) and writes it there with permission mode `ask`. `--base-url` or `FRAK_BASE_URL` skip the question.
+
+## Versioning
+
+The version comes from the latest `v*` git tag (`frak --version`). `make versioning` tags HEAD with the next minor version and `make versioning major` with the next major one. Commit first, then `git push origin <tag>` so `make update` picks it up.
 
 ## Usage
 
@@ -26,7 +32,7 @@ frak --no-session            # do not write a session file
 frak --doctor                # check server, template, tool calls and MCP servers, then exit
 ```
 
-`FRAK_BASE_URL` and `FRAK_MODEL` override the config. Run `make` to see the Makefile shortcuts (`run`, `continue`, `resume`, `ask P=...`, `doctor`, `test`, `mcp`, `config`, `sessions`, ...).
+`FRAK_BASE_URL` and `FRAK_MODEL` override the config. `frak --help` lists the options. `make` lists install, update, versioning and dev tasks.
 
 ### In the prompt
 
@@ -159,17 +165,18 @@ Tools show up as `mcp__<server>__<tool>` and ask for permission by default. In l
 Managing servers from the shell:
 
 ```sh
-make mcp                       # interactive: URL, llama-server proxy or local command
-make mcp-list
-make mcp-check NAME=github     # connect and list tools
-make mcp-remove NAME=github
+frak mcp list
+frak mcp add github --url https://<host>/mcp --header "Authorization=Bearer ${GITHUB_TOKEN}"
+frak mcp add fs --command npx --arg -y --arg <package> --scope project
+frak mcp check github          # connect and list tools
+frak mcp remove github
 ```
 
-These wrap `uv run python -m frakobla_llm.mcp_config list|add|check|remove`.
+`./scripts/add-mcp.sh` in a checkout asks the same questions interactively.
 
 ## Development
 
 ```sh
-make test        # uv run pytest -q
-make test-fast   # skip tests that start MCP servers
+make test
+make lint
 ```

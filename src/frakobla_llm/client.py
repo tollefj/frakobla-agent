@@ -113,6 +113,12 @@ class LlamaClient:
             timeout=httpx.Timeout(timeout, connect=5),
         )
 
+    def check_reachable(self) -> None:
+        try:
+            self._http.get("/health")
+        except httpx.HTTPError as error:
+            raise LlamaError(self._unreachable_text(error)) from error
+
     def models(self) -> list[ModelInfo]:
         entries = self._get("/v1/models").get("data") or []
         return [_model_info(entry) for entry in entries]

@@ -11,10 +11,21 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
-from frakobla_llm import commands
+from frakobla_llm import __version__, commands, mcp_config
 from frakobla_llm.client import THINKING_LEVELS, LlamaClient, LlamaError, resolve_model
 from frakobla_llm.commands import App, pick_session
-from frakobla_llm.config import GLOBAL_CONFIG, LEGACY_DATA_DIR, Config, ConfigError, append_rule, load_config, migrate_legacy_data
+from frakobla_llm.config import (
+    DEFAULTS,
+    GLOBAL_CONFIG,
+    LEGACY_DATA_DIR,
+    Config,
+    ConfigError,
+    append_rule,
+    load_config,
+    migrate_legacy_data,
+    normalize_base_url,
+    write_initial_config,
+)
 from frakobla_llm.context import build_system_prompt, discover_agents_files
 from frakobla_llm.loop import Agent
 from frakobla_llm.mcp_client import McpManager, lazy_enabled, mcp_search_tool, parse_servers
@@ -38,7 +49,12 @@ INTERACT_HINT = (
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="frak", description="frakobla llm: minimal agentic CLI for a local llama.cpp server")
+    parser = argparse.ArgumentParser(
+        prog="frak",
+        description="frakobla llm: minimal agentic CLI for a local llama.cpp server",
+        epilog="MCP servers: frak mcp {list,add,check,remove}, see frak mcp --help",
+    )
+    parser.add_argument("-V", "--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("-p", "--prompt", help="run one prompt without the interactive UI")
     parser.add_argument("--model", help="model id, defaults to the loaded model")
     parser.add_argument("--thinking", choices=THINKING_LEVELS, help="reasoning level sent to the model")
@@ -71,6 +87,8 @@ def open_session(args: argparse.Namespace, cwd: Path, console: Console) -> Sessi
 
 
 def main() -> int:
+    if sys.argv[1:2] == ["mcp"]:
+        return mcp_config.main(sys.argv[2:])
     args = build_parser().parse_args()
     errors = Console(stderr=True)
     cwd = Path.cwd()
@@ -78,6 +96,11 @@ def main() -> int:
     try:
         if moved := migrate_legacy_data():
             errors.print(Text(f"moved {moved} files from {LEGACY_DATA_DIR} to the config directory", style="dim"))
+        if needs_first_run_setup(args, headless):
+            try:
+                first_run_setup(errors)
+            except KeyboardInterrupt:
+                return EXIT_INTERRUPTED
         config = load_config(cwd, trust=None if headless else ask_trust)
         apply_overrides(config, args)
         client = LlamaClient(config["server"]["base_url"], config["server"]["api_key"], config["server"]["timeout"])
@@ -165,6 +188,48 @@ def main() -> int:
         return run_interactive(app, config)
     finally:
         mcp.close()
+
+
+def needs_first_run_setup(args: argparse.Namespace, headless: bool) -> bool:
+    return not headless and not GLOBAL_CONFIG.exists() and not args.base_url and not os.environ.get("FRAK_BASE_URL")
+
+
+def first_run_setup(console: Console) -> None:
+    default_url = DEFAULTS["server"]["base_url"]
+    console.print(Text(f"No config found at {GLOBAL_CONFIG}.", style="yellow"))
+    console.print("Paste the llama-server URL with port, e.g. http://192.168.0.10:8080. Enter keeps the default.")
+    while True:
+        try:
+            reply = plain_prompt(f"server url [{default_url}] > ").strip()
+        except EOFError as error:
+            raise ConfigError("no server URL given") from error
+        try:
+            url = normalize_base_url(reply or default_url)
+        except ConfigError as error:
+            console.print(Text(str(error), style="red"))
+            continue
+        if server_reachable(url, console) or confirm("save it anyway? [y/N] > "):
+            break
+    write_initial_config(GLOBAL_CONFIG, url)
+    console.print(Text(f"wrote {GLOBAL_CONFIG} (permission mode: ask)", style="dim"))
+
+
+def server_reachable(url: str, console: Console) -> bool:
+    console.print(Text(f"checking {url} ...", style="dim"))
+    try:
+        LlamaClient(url, timeout=5).check_reachable()
+    except LlamaError as error:
+        console.print(Text(str(error), style="red"))
+        return False
+    console.print(Text("server reachable", style="green"))
+    return True
+
+
+def confirm(question: str) -> bool:
+    try:
+        return plain_prompt(question).strip().lower() in ("y", "yes")
+    except EOFError:
+        return False
 
 
 def ask_trust(path: Path, sections: list[str]) -> bool:
@@ -310,7 +375,7 @@ def print_startup_panel(app: App, config: Config, agents_files: list[Path]) -> N
     for warning in warnings:
         body.append(f"warning: {warning}\n", style="yellow")
     body.append("/help for commands, Ctrl-C cancels a turn, Ctrl-C twice or Ctrl-D quits", style="dim")
-    app.console.print(Panel(body, title="frakobla llm", border_style="blue", expand=False))
+    app.console.print(Panel(body, title=f"frakobla llm {__version__}", border_style="blue", expand=False))
 
 
 def enable_lazy_mcp(registry: Registry, mcp: McpManager, setting: bool | str) -> str:

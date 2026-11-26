@@ -23,7 +23,7 @@ EXIT_OK, EXIT_FAILED = 0, 1
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="python -m frakobla_llm.mcp_config", description="Manage MCP servers in the frak config")
+    parser = argparse.ArgumentParser(prog="frak mcp", description="Manage MCP servers in the frak config")
     commands = parser.add_subparsers(dest="action", required=True)
 
     commands.add_parser("list", help="list configured servers")

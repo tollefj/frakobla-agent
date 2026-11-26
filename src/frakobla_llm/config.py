@@ -5,6 +5,7 @@ import hashlib
 import json
 import shutil
 import tomllib
+import urllib.parse
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -125,6 +126,23 @@ def migrate_legacy_data(legacy: Path = LEGACY_DATA_DIR, target: Path | None = No
             shutil.move(file, destination)
             moved += 1
     return moved
+
+
+def normalize_base_url(raw: str) -> str:
+    url = raw.strip().rstrip("/")
+    if "://" not in url:
+        url = f"http://{url}"
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        raise ConfigError(f"not a server URL: {raw!r}")
+    return url
+
+
+def write_initial_config(path: Path, base_url: str) -> None:
+    document = tomlkit.document()
+    document["server"] = {"base_url": normalize_base_url(base_url)}
+    document["permissions"] = {"mode": "ask"}
+    _write_document(path, document)
 
 
 def append_rule(path: Path, tier: str, tool: str, pattern: str, kind: str) -> Path:

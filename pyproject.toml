@@ -1,6 +1,6 @@
 [project]
 name = "frakobla-llm"
-version = "0.1.0"
+dynamic = ["version"]
 description = "frakobla llm: minimal agentic CLI for a local llama.cpp server"
 requires-python = ">=3.13"
 dependencies = [
@@ -22,8 +22,12 @@ dev = [
 ]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+fallback-version = "0.0.0"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/frakobla_llm"]

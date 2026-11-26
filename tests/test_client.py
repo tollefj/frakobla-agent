@@ -1,6 +1,6 @@
 import pytest
 
-from frakobla_llm.client import CompletionBuilder, LlamaError, thinking_params
+from frakobla_llm.client import CompletionBuilder, LlamaClient, LlamaError, thinking_params
 
 
 def chunk(delta: dict, finish_reason: str | None = None) -> dict:
@@ -70,3 +70,8 @@ def test_thinking_params():
     high = thinking_params("high")
     assert high["reasoning_effort"] == "high"
     assert high["chat_template_kwargs"] == {"enable_thinking": True, "reasoning_effort": "high"}
+
+
+def test_unreachable_server_raises():
+    with pytest.raises(LlamaError, match="failed"):
+        LlamaClient("http://127.0.0.1:9", timeout=2).check_reachable()
