@@ -6,12 +6,14 @@ from pathlib import Path
 from prompt_toolkit import PromptSession
 from prompt_toolkit import prompt as plain_prompt
 from prompt_toolkit.completion import CompleteEvent, Completer, Completion
+from prompt_toolkit.data_structures import Size
 from prompt_toolkit.document import Document
 from prompt_toolkit.formatted_text import FormattedText
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.input.ansi_escape_sequences import ANSI_SEQUENCES
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.keys import Keys
+from prompt_toolkit.output import Output, create_output
 
 from frakobla_llm.config import CONFIG_DIR
 from frakobla_llm.permissions import Answer, Choice
@@ -113,7 +115,13 @@ class InputCompleter(Completer):
 
 class InputPrompt:
     def __init__(
-        self, cwd: Path, command_names: list[str], toolbar: Callable[[], str], interaction: Interaction
+        self,
+        cwd: Path,
+        command_names: list[str],
+        toolbar: Callable[[], str],
+        interaction: Interaction,
+        reserved_rows: int = 0,
+        after_render: Callable[[], None] | None = None,
     ) -> None:
         HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
         self.interaction = interaction
@@ -123,7 +131,10 @@ class InputPrompt:
             complete_while_typing=True,
             key_bindings=newline_bindings(),
             bottom_toolbar=toolbar,
+            output=output_without_rows(reserved_rows) if reserved_rows else None,
         )
+        if after_render:
+            self._session.app.after_render += lambda _: after_render()
 
     def read(self) -> str:
         suggestions = self.interaction.suggestions
@@ -132,6 +143,18 @@ class InputPrompt:
         finally:
             self.interaction.suggestions = []
         return chosen_suggestion(text, suggestions) or text
+
+
+def output_without_rows(reserved: int) -> Output:
+    output = create_output()
+    full_size = output.get_size
+
+    def get_size() -> Size:
+        size = full_size()
+        return Size(rows=max(size.rows - reserved, 1), columns=size.columns)
+
+    output.get_size = get_size
+    return output
 
 
 def newline_bindings() -> KeyBindings:

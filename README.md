@@ -95,7 +95,8 @@ connect_timeout = 15
 lazy = "auto"         # true, false, or auto (on above 12 MCP tools)
 
 [ui]
-show_reasoning = false
+show_reasoning = "summary"  # full, summary (one line), or off. /reasoning switches it at runtime
+status_bar = true
 ```
 
 ## context + sessions

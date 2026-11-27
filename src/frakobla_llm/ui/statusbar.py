@@ -21,7 +21,7 @@ class StatusBar:
         self._last = 0.0
 
     def install(self) -> None:
-        self._write("\n" * self.height)
+        self._write("\n" * self.height + f"\x1b[{self.height}A")
         self.refresh(force=True)
 
     def refresh(self, force: bool = False) -> None:
@@ -30,16 +30,19 @@ class StatusBar:
             return
         self._last = now
         columns, rows = shutil.get_terminal_size()
-        self.console.height = rows - self.height
+        top = rows - self.height
+        self.console.height = top
         lines = self.render(columns)[: self.height]
         drawn = "".join(
-            f"\x1b[{row};1H\x1b[2K{self._ansi(line, columns)}\x1b[0m" for row, line in enumerate(lines, 1)
+            f"\x1b[{row};1H\x1b[2K{self._ansi(line, columns)}\x1b[0m" for row, line in enumerate(lines, top + 1)
         )
-        self._write(f"{SAVE}\x1b[{self.height + 1};{rows}r{RESTORE}{SAVE}{NO_WRAP}{drawn}{WRAP}{RESTORE}")
+        self._write(f"{SAVE}\x1b[1;{top}r{RESTORE}{SAVE}{NO_WRAP}{drawn}{WRAP}{RESTORE}")
 
     def remove(self) -> None:
         self.console.height = None
-        self._write(f"{SAVE}\x1b[r{RESTORE}")
+        rows = shutil.get_terminal_size().lines
+        clear = "".join(f"\x1b[{row};1H\x1b[2K" for row in range(rows - self.height + 1, rows + 1))
+        self._write(f"{SAVE}\x1b[r{clear}{RESTORE}")
 
     def _ansi(self, text: Text, width: int) -> str:
         buffer = io.StringIO()

@@ -21,6 +21,7 @@ from frakobla_llm.ui.prompt import PLAN_MARKS, read_choice, read_permission_answ
 
 RESULT_PREVIEW_LINES = 6
 REASONING_TAIL_LINES = 6
+REASONING_MODES = ("full", "summary", "off")
 ARG_PREVIEW_CHARS = 70
 CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
 
@@ -42,6 +43,16 @@ def split_complete_blocks(text: str) -> tuple[str, str]:
     return text[:cut], text[cut:]
 
 
+def reasoning_mode(value: object) -> str:
+    if value is True:
+        return "full"
+    if value is False:
+        return "summary"
+    if value not in REASONING_MODES:
+        raise ValueError(f"ui.show_reasoning must be one of {', '.join(REASONING_MODES)}, got {value!r}")
+    return str(value)
+
+
 def summarize_args(args: dict) -> str:
     parts = []
     for key, value in args.items():
@@ -54,9 +65,9 @@ def summarize_args(args: dict) -> str:
 
 
 class Renderer:
-    def __init__(self, console: Console, show_reasoning: bool, spinner: str = "dots") -> None:
+    def __init__(self, console: Console, reasoning: str = "summary", spinner: str = "dots") -> None:
         self.console = console
-        self.show_reasoning = show_reasoning
+        self.reasoning_mode = reasoning
         self.spinner = spinner
         self._live: Live | None = None
         self._pending_markdown = ""
@@ -75,9 +86,13 @@ class Renderer:
         self._reasoning += strip_control(text)
         self._reasoning_tokens += 1
         self.on_tick(False)
-        tail = "\n".join(self._reasoning.splitlines()[-REASONING_TAIL_LINES:])
         label = f"thinking... {self._reasoning_tokens} tokens"
-        self._show(Group(Spinner(self.spinner, label, style="dim", speed=0.8), Text(tail, style="dim italic")))
+        spinner = Spinner(self.spinner, label, style="dim", speed=0.8)
+        if self.reasoning_mode == "off":
+            self._show(spinner)
+            return
+        tail = "\n".join(self._reasoning.splitlines()[-REASONING_TAIL_LINES:])
+        self._show(Group(spinner, Text(tail, style="dim italic")))
 
     def content(self, text: str) -> None:
         self._finish_reasoning()
@@ -135,9 +150,9 @@ class Renderer:
         if not self._reasoning:
             return
         self._hide()
-        if self.show_reasoning:
+        if self.reasoning_mode == "full":
             self.console.print(Text(self._reasoning.strip(), style="dim italic"))
-        else:
+        elif self.reasoning_mode == "summary":
             seconds = time.monotonic() - self._reasoning_started
             self.console.print(
                 Text(f"thought for {seconds:.1f}s ({self._reasoning_tokens} tokens)", style="dim italic")

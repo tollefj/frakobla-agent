@@ -36,7 +36,7 @@ from frakobla_llm.tools.interact import Interaction, interact_tools
 from frakobla_llm.tools.registry import Registry, Risk
 from frakobla_llm.tools.shell import MAX_TIMEOUT_SECONDS, bash_tool, run_command
 from frakobla_llm.ui.prompt import InputPrompt
-from frakobla_llm.ui.render import PlainUI, Renderer
+from frakobla_llm.ui.render import PlainUI, Renderer, reasoning_mode
 from frakobla_llm.ui.status import Snapshot, format_tokens, status_text, top_bar
 from frakobla_llm.ui.statusbar import StatusBar
 
@@ -110,7 +110,7 @@ def main() -> int:
         ui: PlainUI | Renderer = PlainUI()
         prompter = None
         if not headless:
-            ui = renderer = Renderer(console, config["ui"]["show_reasoning"], config["ui"]["spinner"])
+            ui = renderer = Renderer(console, reasoning_mode(config["ui"]["show_reasoning"]), config["ui"]["spinner"])
             prompter = renderer.ask_permission
         permissions = Permissions(
             config["permissions"],
@@ -270,7 +270,14 @@ def run_interactive(app: App, config: Config) -> int:
             agent.session.name,
         )
 
-    prompt = InputPrompt(app.cwd, list(commands.COMMANDS), toolbar, app.interaction)
+    prompt = InputPrompt(
+        app.cwd,
+        list(commands.COMMANDS),
+        toolbar,
+        app.interaction,
+        reserved_rows=bar.height if bar else 0,
+        after_render=(lambda: bar.refresh(force=True)) if bar else None,
+    )
     if bar is None:
         return read_loop(app, prompt)
     bar.install()

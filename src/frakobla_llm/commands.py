@@ -21,7 +21,7 @@ from frakobla_llm.permissions import Mode, Permissions
 from frakobla_llm.session import Session, SessionInfo
 from frakobla_llm.tools.interact import Interaction
 from frakobla_llm.tools.registry import object_schema
-from frakobla_llm.ui.render import plan_text
+from frakobla_llm.ui.render import REASONING_MODES, Renderer, plan_text
 from frakobla_llm.ui.status import format_tokens
 
 EXPORT_RESULT_CHARS = 2000
@@ -314,6 +314,18 @@ def _think(app: App, level: str) -> None:
     app.console.print(f"[dim]thinking: {app.agent.thinking}[/dim]")
 
 
+def _reasoning(app: App, mode: str) -> None:
+    ui = app.agent.ui
+    if not isinstance(ui, Renderer):
+        return
+    if mode:
+        if mode not in REASONING_MODES:
+            app.console.print(f"[red]unknown mode {mode}[/red], expected {', '.join(REASONING_MODES)}")
+            return
+        ui.reasoning_mode = mode
+    app.console.print(f"[dim]reasoning display: {ui.reasoning_mode}[/dim]")
+
+
 def _tools(app: App, argument: str) -> None:
     action, _, query = argument.partition(" ")
     if action == "load":
@@ -600,6 +612,7 @@ COMMANDS = {
         Command("/model", "pick a model, unloads the current one and loads the new one, or /model <number|text>", _model),
         Command("/mode", "show or set permission mode: ask, readonly, yolo", _mode),
         Command("/think", "show or set thinking level: " + ", ".join(THINKING_LEVELS), _think),
+        Command("/reasoning", "show or set reasoning display: " + ", ".join(REASONING_MODES), _reasoning),
         Command("/unload", "unload the current model from the server", _unload),
         Command("/tools", "list tools, /tools load <name|keywords> loads lazy MCP tools", _tools),
         Command("/perms", "show permission rules and session grants", _perms),

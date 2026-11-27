@@ -4,7 +4,7 @@ from rich.console import Console
 
 from frakobla_llm.client import Completion
 from frakobla_llm.stats import Stats, Usage, energy_kwh
-from frakobla_llm.ui.render import Renderer
+from frakobla_llm.ui.render import Renderer, reasoning_mode
 from frakobla_llm.ui.status import Snapshot, top_bar
 
 
@@ -58,8 +58,22 @@ def test_top_bar_shows_model_thinking_context_and_energy():
 
 def test_reasoning_summary_counts_tokens():
     output = io.StringIO()
-    renderer = Renderer(Console(file=output, width=80), show_reasoning=False)
+    renderer = Renderer(Console(file=output, width=80), reasoning="summary")
     for piece in ["one", " two", " three"]:
         renderer.reasoning(piece)
     renderer.stream_end()
     assert "(3 tokens)" in output.getvalue()
+
+
+def test_reasoning_off_prints_nothing():
+    output = io.StringIO()
+    renderer = Renderer(Console(file=output, width=80), reasoning="off")
+    renderer.reasoning("secret")
+    renderer.stream_end()
+    assert output.getvalue() == ""
+
+
+def test_reasoning_mode_accepts_legacy_bools():
+    assert reasoning_mode(True) == "full"
+    assert reasoning_mode(False) == "summary"
+    assert reasoning_mode("off") == "off"
